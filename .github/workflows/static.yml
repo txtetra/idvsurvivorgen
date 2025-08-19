@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Identity V – Survivor Randomizer</title>
+  <style>
+    :root { --bg:#0f1220; --card:#171a2b; --ink:#e8ebff; --muted:#9aa3c7; --accent:#7aa2ff; --accent-2:#24e8c2; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, Helvetica, Arial; background:radial-gradient(1200px 600px at 10% 0%, #1b2040 0%, var(--bg) 60%); color:var(--ink); }
+    header { padding:28px 20px 0; text-align:center; }
+    h1 { font-size:clamp(22px, 4vw, 34px); margin:0 0 6px; letter-spacing:0.4px; }
+    p.sub { margin:0; color:var(--muted); }
+
+    .wrap { max-width:980px; margin:24px auto; padding:16px; }
+    .grid { display:grid; grid-template-columns: 1fr; gap:16px; }
+
+    .card { background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.00)), var(--card); border:1px solid rgba(255,255,255,0.06); border-radius:18px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); }
+    .card.pad { padding:18px; }
+
+    .controls { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+    .controls .grow { flex:1 1 auto; }
+    button, .toggle, select { background:#101328; color:var(--ink); border:1px solid rgba(255,255,255,0.14); border-radius:12px; padding:12px 14px; font-weight:600; cursor:pointer; transition:transform .08s ease, background .2s ease, box-shadow .2s ease; }
+    button.primary { background:linear-gradient(180deg, rgba(122,162,255,.18), rgba(36,232,194,.12)), #131735; border:1px solid rgba(122,162,255,.4); box-shadow:0 8px 24px rgba(36,232,194,.15); }
+    button:hover { transform: translateY(-1px); }
+    button:active { transform: translateY(0); }
+
+    .result { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+    .name { font-size: clamp(24px, 5vw, 40px); font-weight:800; letter-spacing:0.6px; line-height:1.2; }
+    .chips { display:flex; flex-wrap:wrap; gap:8px; }
+    .chip { background:#0e1122; color:var(--muted); border:1px dashed rgba(255,255,255,0.14); padding:6px 10px; border-radius:999px; font-size:12px; }
+
+    .history { display:grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap:10px; }
+    .pill { padding:10px 12px; border-radius:12px; background:#0e1122; border:1px solid rgba(255,255,255,0.08); text-align:center; color:var(--ink); font-weight:600; }
+
+    .footer { color:var(--muted); font-size:12px; text-align:center; padding:16px; }
+
+    .spin { animation: spin .55s ease-out; }
+    @keyframes spin { 0% { transform: rotateX(0deg) scale(0.98); opacity: .5 } 80% { transform: rotateX(360deg) } 100% { transform: rotateX(360deg) scale(1); opacity:1 } }
+
+    .row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+    .row input[type="checkbox"] { width:18px; height:18px; }
+
+    .search { width:100%; background:#0d1130; border:1px solid rgba(255,255,255,0.12); color:var(--ink); border-radius:10px; padding:10px 12px; outline:none; }
+    .small { font-size:12px; color:var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Identity V – Survivor Randomizer</h1>
+    <p class="sub">Clicks like a number picker, but it rolls <strong>all survivors</strong>. No repeats (optional) + history.</p>
+  </header>
+
+  <div class="wrap">
+    <div class="grid">
+      <div class="card pad">
+        <div class="controls">
+          <div class="grow row">
+            <label class="row">
+              <input id="noRepeats" type="checkbox" checked />
+              <span>No repeats until reset</span>
+            </label>
+            <span class="chip">Total: <span id="totalCount">0</span></span>
+            <span class="chip">Remaining: <span id="remainingCount">0</span></span>
+          </div>
+          <button id="rollBtn" class="primary">🎲 Roll Survivor</button>
+          <button id="resetBtn">↻ Reset</button>
+          <button id="copyBtn" title="Copy history">📋 Copy</button>
+        </div>
+      </div>
+
+      <div class="card pad">
+        <div class="result">
+          <div>
+            <div id="result" class="name">—</div>
+            <div class="chips" id="metaChips"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card pad">
+        <div class="row" style="margin-bottom:6px; justify-content:space-between;">
+          <strong>History</strong>
+          <input id="search" class="search" placeholder="Search… (filters history)" />
+        </div>
+        <div id="history" class="history"></div>
+        <div id="emptyHistory" class="small">Nothing rolled yet.</div>
+      </div>
+
+      <div class="card pad">
+        <details>
+          <summary><strong>Full Survivor List (click to view)</strong></summary>
+          <div id="fullList" class="history" style="margin-top:10px"></div>
+        </details>
+      </div>
+
+      <div class="footer">
+        Built for quick customs / roulette. Updated for the roster count of <span id="rosterYear">2025</span>.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Identity V – ALL Survivors (49) as of Aug 19, 2025
+    const SURVIVORS = [
+      // Default / Prologue
+      "Doctor","Lawyer","Thief","Gardener","Lucky Guy",
+      // Season 1 block
+      "Magician","Explorer","Mercenary","Coordinator","Mechanic","Forward","The Mind's Eye","Priestess","Perfumer",
+      // Season 2–3
+      "Cowboy","Female Dancer","Seer","Embalmer",
+      // Season 5–7
+      "Prospector","Enchantress","Wildling","Acrobat","First Officer",
+      // Season 8–11
+      "Barmaid","Postman","Grave Keeper","Prisoner","Entomologist",
+      // Season 13–17
+      "Painter","Batter","Toy Merchant","Psychologist","Patient",
+      // Season 18–22
+      "Novelist","Little Girl","Weeping Clown","Professor","Antiquarian",
+      // Season 24–30
+      "Composer","Journalist","Aeroplanist","Cheerleader","Puppeteer",
+      // Season 31–36
+      "Fire Investigator","Faro Lady","Knight","Meteorologist","Archer",
+      // Season 37
+      "Escapologist"
+    ];
+
+    // Optional metadata chips by season/role-type (minimal, for flavor)
+    const META = {
+      "Doctor":"Default", "Lawyer":"Default", "Thief":"Default", "Gardener":"Default", "Lucky Guy":"Default",
+      "Magician":"S1", "Explorer":"S1", "Mercenary":"S1", "Coordinator":"S1", "Mechanic":"S1", "Forward":"S1", "The Mind's Eye":"S1", "Priestess":"S1", "Perfumer":"S1",
+      "Cowboy":"S2", "Female Dancer":"S2", "Seer":"S3", "Embalmer":"S3",
+      "Prospector":"S5", "Enchantress":"S5", "Wildling":"S6", "Acrobat":"S6", "First Officer":"S7",
+      "Barmaid":"S8", "Postman":"S9", "Grave Keeper":"S10", "Prisoner":"S10", "Entomologist":"S11",
+      "Painter":"S13", "Batter":"S14", "Toy Merchant":"S16", "Psychologist":"S17", "Patient":"S17",
+      "Novelist":"S18", "Little Girl":"S18", "Weeping Clown":"S19", "Professor":"S21", "Antiquarian":"S22",
+      "Composer":"S24", "Journalist":"S26", "Aeroplanist":"S27", "Cheerleader":"S28", "Puppeteer":"S30",
+      "Fire Investigator":"S31", "Faro Lady":"S32", "Knight":"S34", "Meteorologist":"S35", "Archer":"S36",
+      "Escapologist":"S37"
+    };
+
+    // State
+    let pool = [...SURVIVORS];
+    let history = [];
+
+    // Elements
+    const elResult = document.getElementById('result');
+    const elMeta = document.getElementById('metaChips');
+    const elHist = document.getElementById('history');
+    const elEmpty = document.getElementById('emptyHistory');
+    const elSearch = document.getElementById('search');
+    const elNoRepeats = document.getElementById('noRepeats');
+    const elTotal = document.getElementById('totalCount');
+    const elRemain = document.getElementById('remainingCount');
+    const elFull = document.getElementById('fullList');
+
+    // Init counts & full list
+    function init() {
+      elTotal.textContent = SURVIVORS.length;
+      elRemain.textContent = pool.length;
+      renderFullList();
+    }
+
+    function renderFullList() {
+      elFull.innerHTML = SURVIVORS.map(n => `<div class="pill" data-name="${n}">${n}</div>`).join('');
+    }
+
+    function roll() {
+      if (pool.length === 0) return;
+      const i = Math.floor(Math.random() * pool.length);
+      const name = pool[i];
+
+      elResult.classList.remove('spin');
+      void elResult.offsetWidth; // restart anim
+      elResult.classList.add('spin');
+      elResult.textContent = name;
+
+      elMeta.innerHTML = '';
+      const tag = META[name];
+      if (tag) {
+        const chip = document.createElement('span'); chip.className='chip'; chip.textContent = tag; elMeta.appendChild(chip);
+      }
+
+      history.unshift(name);
+      if (elNoRepeats.checked) pool.splice(i,1);
+      elRemain.textContent = pool.length;
+      renderHistory();
+    }
+
+    function renderHistory() {
+      const q = elSearch.value?.trim().toLowerCase() || '';
+      const items = (q ? history.filter(n => n.toLowerCase().includes(q)) : history);
+      elHist.innerHTML = items.map(n => `<div class="pill">${n}</div>`).join('');
+      elEmpty.style.display = history.length ? 'none' : 'block';
+    }
+
+    function copyHistory() {
+      const text = history.map((n,i)=> `${history.length - i}. ${n}`).join('\n');
+      navigator.clipboard.writeText(text || '—');
+    }
+
+    function reset() {
+      pool = [...SURVIVORS];
+      history = [];
+      elResult.textContent = '—';
+      elMeta.innerHTML = '';
+      elRemain.textContent = pool.length;
+      renderHistory();
+    }
+
+    // Events
+    document.getElementById('rollBtn').addEventListener('click', roll);
+    document.getElementById('resetBtn').addEventListener('click', reset);
+    document.getElementById('copyBtn').addEventListener('click', copyHistory);
+    elSearch.addEventListener('input', renderHistory);
+
+    init();
+  </script>
+</body>
+</html>
